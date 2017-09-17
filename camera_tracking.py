@@ -1,5 +1,9 @@
+import time
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
+from scipy import ndimage
+from scipy.stats.mstats import gmean
 
 
 def gradient_polar(img):
@@ -12,7 +16,7 @@ def gradient_polar(img):
 
 def preprocess_frame(frame):
     '''Resize image and convert to float'''
-    resize_factor = 0.5
+    resize_factor = 0.2
     height, width = frame.shape[:2]
     new_size = (int(resize_factor * width), int(resize_factor * height))
 
@@ -26,23 +30,26 @@ def calibrate_initial(video_capturer):
     num_images = 10
 
     ret, frame = video_capturer.read()
-    img = preprocess_frame(frame)
-    avg_mag, avg_angle = gradient_polar(img)
+    avg_img = preprocess_frame(frame)
+    avg_mag, avg_angle = gradient_polar(avg_img)
 
     for i in range(num_images):
         ret, frame = video_capturer.read()
         img = preprocess_frame(frame)
         mag, angle = gradient_polar(img)
 
+        avg_img = 0.9 * avg_img + 0.1 * img
         avg_mag = 0.9 * avg_mag + 0.1 * mag
         avg_angle = 0.9 * avg_angle + 0.1 * angle
-    return avg_mag, avg_angle
+    return avg_mag, avg_angle, avg_img
 
 
 def main():
 
     cap = cv2.VideoCapture(0)
-    init_mag, init_angle = calibrate_initial(cap)
+    init_mag, init_angle, init_img = calibrate_initial(cap)
+    plt.imshow(init_img, cmap='Greys')
+    plt.show()
 
     while True:
         ret, frame = cap.read()
@@ -50,8 +57,13 @@ def main():
         img = preprocess_frame(frame)
         mag, angle = gradient_polar(img)
 
-        view = np.abs(mag * angle - init_mag * init_angle)
-        view = view / np.max(view)
+        # view = np.abs(mag * angle - init_mag * init_angle)
+        # view = view / np.max(view)
+        diff = np.abs(init_img - img)
+        center = ndimage.measurements.center_of_mass(diff)
+        center = (int(center[1]), int(center[0]))
+        view = diff / np.max(diff)
+        cv2.circle(view, center, 2, (255, 255, 255), 3)
         cv2.imshow('frame', view)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
