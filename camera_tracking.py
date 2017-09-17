@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import ndimage
-from scipy.stats.mstats import gmean
 
 
 def gradient_polar(img):
@@ -16,7 +15,7 @@ def gradient_polar(img):
 
 def preprocess_frame(frame):
     '''Resize image and convert to float'''
-    resize_factor = 0.2
+    resize_factor = 0.5
     height, width = frame.shape[:2]
     new_size = (int(resize_factor * width), int(resize_factor * height))
 
@@ -27,7 +26,7 @@ def preprocess_frame(frame):
 
 def calibrate_initial(video_capturer):
     '''Do a moving average of magnitude and angle'''
-    num_images = 10
+    num_images = 100
 
     ret, frame = video_capturer.read()
     avg_img = preprocess_frame(frame)
@@ -60,10 +59,13 @@ def main():
         # view = np.abs(mag * angle - init_mag * init_angle)
         # view = view / np.max(view)
         diff = np.abs(init_img - img)
+        diff[diff < np.median(diff)] = 0
         center = ndimage.measurements.center_of_mass(diff)
         center = (int(center[1]), int(center[0]))
         view = diff / np.max(diff)
-        cv2.circle(view, center, 2, (255, 255, 255), 3)
+        view = cv2.cvtColor(view, cv2.COLOR_GRAY2BGR)
+
+        cv2.circle(view, center, 2, (0, 0, 255), 3)
         cv2.imshow('frame', view)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
