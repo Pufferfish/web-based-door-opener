@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import ndimage
+from skimage.measure import compare_ssim
 
 
 def gradient_polar(img):
@@ -21,7 +22,8 @@ def preprocess_frame(frame):
 
     img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     img = cv2.resize(img, new_size)
-    return np.float32(img) / 255.0
+    img = np.float32(img) / 255.0
+    return img
 
 
 def calibrate_initial(video_capturer):
@@ -58,11 +60,11 @@ def main():
 
         # view = np.abs(mag * angle - init_mag * init_angle)
         # view = view / np.max(view)
-        diff = np.abs(init_img - img)
-        diff[diff < np.median(diff)] = 0
+        (score, diff) = compare_ssim(img, init_img, full=True)
+        diff = 1 - diff
         center = ndimage.measurements.center_of_mass(diff)
         center = (int(center[1]), int(center[0]))
-        view = diff / np.max(diff)
+        view = (diff * 255).astype("uint8")
         view = cv2.cvtColor(view, cv2.COLOR_GRAY2BGR)
 
         cv2.circle(view, center, 2, (0, 0, 255), 3)
