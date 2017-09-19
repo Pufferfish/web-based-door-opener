@@ -1,4 +1,5 @@
 import time
+import sys
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,10 +13,10 @@ def preprocess_frame(frame):
     height, width = frame.shape[:2]
     new_size = (int(resize_factor * width), int(resize_factor * height))
 
-    #img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     img = cv2.resize(frame, new_size)
-    img = cv2.GaussianBlur(img, (5, 5), sigmaX=2, sigmaY=2)
-    img = np.float32(img) / 255.0
+    img = cv2.GaussianBlur(img, (11, 11), sigmaX=2, sigmaY=2)
+    # img = np.float32(img) / 255.0
     return img
 
 
@@ -26,53 +27,49 @@ def color_diff(img1, img2, ord=None):
 
 def calibrate_initial(video_capturer):
     '''Do a moving average of magnitude and angle'''
-    num_images = 10
 
-    ret, frame = video_capturer.read()
-    avg_img = preprocess_frame(frame)
 
-    for i in range(num_images):
-        ret, frame = video_capturer.read()
-        img = preprocess_frame(frame)
-        avg_img = 0.9 * avg_img + 0.1 * img
-    return avg_img
+def find_center_of_movement(image):
+    center = ndimage.measurements.center_of_mass(image.astype('float32'))
+    return (int(center[1]), int(center[0]))
 
 
 def main():
-
+    init_images = 10
+    calibration_period = 10
     cap = cv2.VideoCapture(0)
-    init_img = calibrate_initial(cap)
-    print(init_img.shape, init_img.dtype)
-    plt.imshow(cv2.cvtColor(init_img, cv2.COLOR_BGR2RGB))
-    plt.show()
+
+    # Initial calibration of camera
+    ret, frame = cap.read()
+    avg_img = preprocess_frame(frame)
+    for i in range(init_images):
+        ret, frame = cap.read()
+        img = preprocess_frame(frame)
+        avg_img = 0.9 * avg_img + 0.1 * img
+    last_calibration_time = time.time()
 
     while True:
         ret, frame = cap.read()
 
         img = preprocess_frame(frame)
 
-        # view = np.abs(mag * angle - init_mag * init_angle)
-        # view = view / np.max(view)
-        (score, diff) = compare_ssim(img, init_img, full=True, multichannel=True)
-        diff = 1 - diff
-        center = ndimage.measurements.center_of_mass(diff)
-        center = (int(center[1]), int(center[0]))
-        view = (diff * 255).astype("uint8")
-
-        cv2.circle(view, center, 2, (0, 0, 255), 3)
-        cv2.imshow('view', view)
-
-        diff = color_diff(img, init_img)
-        diff = diff
-        center = ndimage.measurements.center_of_mass(diff)
-        center = (int(center[1]), int(center[0]))
-        view = (diff * 255).astype("uint8")
-
-        cv2.circle(view, center, 2, (0, 0, 255), 3)
-        cv2.imshow('view2', view)
-
+        diff = color_diff(img, avg_img)
+        diff = cv2.threshold(diff.astype('uint8'), 100,
+                             255, cv2.THRESH_BINARY)[1]
+        diff = cv2.dilate(diff, None, iterations=3)
+        try:
+            center = find_center_of_movement(diff)
+        except ValueError:
+            pass
+        else:
+            cv2.circle(img, center, 2, (0, 0, 255), 3)
+        cv2.imshow('diff', diff)
+        cv2.imshow('view', img)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+        if time.time() - last_calibration_time > calibration_period:
+            last_calibration_time = time.time()
+            avg_img = 0.9 * avg_img + 0.1 * img
 
     cap.release()
     cv2.destroyAllWindows()
