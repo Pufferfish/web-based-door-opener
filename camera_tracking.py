@@ -22,6 +22,7 @@ def preprocess_frame(frame):
 
     img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     img = cv2.resize(img, new_size)
+    #img = cv2.GaussianBlur(img, (5, 5), sigmaX=2, sigmaY=2)
     img = np.float32(img) / 255.0
     return img
 
@@ -68,7 +69,8 @@ def main():
         view = cv2.cvtColor(view, cv2.COLOR_GRAY2BGR)
 
         cv2.circle(view, center, 2, (0, 0, 255), 3)
-        cv2.imshow('frame', view)
+        cv2.imshow('view', view)
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
