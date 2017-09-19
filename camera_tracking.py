@@ -1,22 +1,17 @@
 import time
-import sys
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import ndimage, linalg
-from skimage.measure import compare_ssim
 
 
 def preprocess_frame(frame):
-    '''Resize image and convert to float'''
+    '''Resize image and blur'''
     resize_factor = 0.5
     height, width = frame.shape[:2]
     new_size = (int(resize_factor * width), int(resize_factor * height))
 
-    # img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     img = cv2.resize(frame, new_size)
     img = cv2.GaussianBlur(img, (11, 11), sigmaX=2, sigmaY=2)
-    # img = np.float32(img) / 255.0
     return img
 
 
@@ -25,16 +20,14 @@ def color_diff(img1, img2, ord=None):
     return linalg.norm(img1 - img2, ord, 2)
 
 
-def calibrate_initial(video_capturer):
-    '''Do a moving average of magnitude and angle'''
-
-
-def find_center_of_movement(image):
+def center_of_mass(image):
+    '''Center of mass of image'''
     center = ndimage.measurements.center_of_mass(image.astype('float32'))
     return (int(center[1]), int(center[0]))
 
 
 def main():
+    '''Detect movement in video stream'''
     init_images = 10
     calibration_period = 10
     cap = cv2.VideoCapture(0)
@@ -58,7 +51,7 @@ def main():
                              255, cv2.THRESH_BINARY)[1]
         diff = cv2.dilate(diff, None, iterations=3)
         try:
-            center = find_center_of_movement(diff)
+            center = center_of_mass(diff)
         except ValueError:
             pass
         else:
